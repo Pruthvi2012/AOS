@@ -1,0 +1,28 @@
+
+#include  <stdio.h>
+#include  <sys/types.h>
+
+int main(int nargs,char *args[])
+{
+    pid_t pid;
+    int p[2];
+	char buffer[100];
+		
+		
+	pipe(p);
+	
+    pid=fork();
+	    
+    if (pid==0){
+        printf("Child PID=%d\n",getpid()); 
+		close(p[1]);
+		read(p[0], buffer, sizeof(args[1]));
+		printf("%s",buffer);
+    }else{
+        printf("Parent PID=%d\n",getpid());
+		close(p[0]);
+		write(p[1],args[1],(strlen(args[1])+1));
+		exit(0);
+    }
+}
+
