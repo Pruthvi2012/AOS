@@ -1,0 +1,13 @@
+What is Orphan and Zombie processes?
+
+Zombie Process
+If once a child process dies and the parent process is still executing, the child process exit state is stored in process table.This exit state has to be read by parent process and this process is called reaping.The time between exit state creation and reaping is called Zombie state and the child process is called Zombie process.
+
+Orphan Process
+If a parent process dies and the child is still in execution, it is called an orphan process.Every orphan process is automatically adopted by init. 
+
+
+
+What are the changes that occur when the child process calls the exec system call to execute a new program?
+
+When a child process calls exec,the actual child program will be interupted and replaced by the exec function, but the parent will remain the same. 
