@@ -14,13 +14,13 @@ shellcmd xsh_hello(int nargs, char *args[]) {
 	uint32	now;			/* current local time		*/
 	
 	if(nargs > 2){
-		printf("Too many Arguments");
+		printf("Too many Arguments\n");
 	}
 	else if(nargs < 2){
-		printf("Too few Arguments");
+		printf("Too few Arguments\n");
 	}
 	else{
-		printf("Hello %s, Welcome to the world of Xinu!!",args[1]);
+		printf("Hello %s, Welcome to the world of Xinu!!\n",args[1]);
 	}
 	
 	return 0;
