@@ -7,7 +7,7 @@ int main(int nargs,char *args[])
 {
     pid_t pid;                         /*pid for fork*/
     int p[2];				/*p for piping*/
-    char buffer[100],cmd[20];
+    char buffer[100],cmd[20]={};
 		
     if(nargs < 2)	{
 	printf("give atleast one proper argument");
