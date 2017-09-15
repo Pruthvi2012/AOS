@@ -4,32 +4,28 @@
 #include <xinu.h>
 #include <stdio.h>
 #include <string.h>
-#include <process_ring.h>
+#include "process_ring.h"
 
 
 
 
 //Polling value decrement function
 //OUTPUT: OK
-process polling(volatile int32 *pIndex)
-{
+process pollingDec(volatile int32 *pId){
     int32 tmp = 0;
-    while (tmp < rings)
-    {   
-        int32 pValue = pollingValueStore[*pIndex];
-		int32 nextVal = *pIndex+1;
-        pollingStore[nextVal] = pValue-1;
-        *pIndex = nextVal;
+    while (tmp < rnd){   
+        int32 pValue = pollingValue[*pId];
+	int32 nextVal = *pId+1;
+        pollingValue[nextVal] = pValue-1;
+        *pId = nextVal;
         tmp++;
-        printf("Ring %d : Round %d : Value : %d\n", liveCount, initRounds, pValue);
-        if (liveCount == pCount - 1)
-        {
-            initRings++;
-            liveCount = 0;
+        printf("Ring %d : Round %d : Value : %d\n", counter, defaultRnd, pValue);
+        if (counter == processCount - 1){
+            defaultRnd++;
+            counter = 0;
         }
-        else
-        {
-            liveCount = liveCount + 1;
+        else{
+            counter = counter + 1;
         }
     }
     return OK;
@@ -37,32 +33,27 @@ process polling(volatile int32 *pIndex)
 
 //Semaphore decrement value function
 //output: OK
-process semaphore(int32 pIndex)
-{
-    int32 updatedIndex;
-    while (initRings < rings)
-    {
-        wait(process_semaphores[pIndex]);
-        if (pValue_semaphore > -1)
-        {
-            printf("Ring Element %d : Ring %d : Value : %d\n", pIndex, initRings, pValue_semaphore);
+process semDec(int32 pId){
+    int32 updatedId;
+    while (defaultRnd < rnd){
+        wait(semProcess[pId]);
+        if (semProcessValue > -1){
+            printf("Ring Element %d : Ring %d : Value : %d\n", pId, defaultRnd, semProcessValue);
 
-            liveCount = liveCount + 1;
-            pValue_semaphore = pValue_semaphore - 1;
+            counter = counter + 1;
+            semProcessValue = semProcessValue - 1;
 
-            if (pIndex == pCount - 1)
-            {
-                updatedIndex = 0;
-                initRings = initRings + 1;
+            if (pId == processCount - 1){
+                updatedId = 0;
+                defaultRnd = defaultRnd + 1;
             }
-            else
-            {
-                updatedIndex = pIndex + 1;
+            else{
+                updatedId = pId + 1;
             }
         }
-        signal(process_semaphores[updatedIndex]);
+        signal(semProcess[updatedId]);
     }
-    signal(process_doneSemaphores[pIndex]);
+    signal(doneSemProcess[pId]);
     return OK;
 }
 

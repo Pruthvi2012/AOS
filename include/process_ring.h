@@ -1,13 +1,16 @@
 #include<xinu.h>
-#include<stdio.h>
-#include<string.h>
-#include<stdlib.h>
 
-initRings = 0;
-liveCount = 0;
-pCount = 2;
-rings = 3;
+int32 pollProcess[65];
+sid32 semProcess[65];
+int32 semProcessValue;
+sid32 doneSemProcess[65];
+int32 processCount;
+int32 rnd;
+int32 defaultRnd;
+int32 pollingValue[6401];
+int32 counter;
 
-process semaphore(int32 pIndex);
-process polling(volatile int32 *pIndex);
+
+process pollingDec(volatile int32 *pId);
+process semDec(volatile int32 pId);
 void printHelp(void);
