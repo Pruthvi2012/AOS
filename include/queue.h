@@ -17,8 +17,8 @@ struct	qentry	{		/* One per process plus two per list	*/
 	pid32	processId;
 	//qid16	qnext;		/* Index of next process or tail	*/
 	//qid16	qprev;		/* Index of previous process or head	*/
-	qid32   *qnext;
-	qid32	*qprev;
+	struct qentry* qnext;
+	struct qentry* qprev;
 };
 
 extern	struct qentry	queuetab[];
@@ -27,8 +27,8 @@ extern	struct qentry	queuetab[];
 
 #define	queuehead(q)	(q)
 #define	queuetail(q)	((q) + 1)
-#define	firstid(q)	*(queuetab[queuehead(q)].qnext)
-#define	lastid(q)	*(queuetab[queuetail(q)].qprev)
+#define	firstid(q)	(queuetab[queuehead(q)].qnext->processId)
+#define	lastid(q)	(queuetab[queuetail(q)].qprev->processId)
 #define	isempty(q)	(firstid(q) >= NPROC)
 #define	nonempty(q)	(firstid(q) <  NPROC)
 #define	firstkey(q)	(queuetab[firstid(q)].qkey)

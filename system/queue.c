@@ -13,19 +13,24 @@ pid32	enqueue(
 	  qid16		q		/* ID of queue to use		*/
 	)
 {
-	qid16	tail, prev;		/* Tail & previous node indexes	*/
+	//qid16	tail, prev;		/* Tail & previous node indexes	*/
+	
+	struct qentry *prev;
+	struct qentry *tail;
 
 	if (isbadqid(q) || isbadpid(pid)) {
 		return SYSERR;
 	}
+        
+	tail = &queuetab[queuetail(q)];
+	prev = queuetab[tail->pid].qprev;
+	queuetab[tail->pid}.qnext = &queuetab[pid];
+	queuetab[pid].qnext = &queuetab[tail->pid];
+	queuetab[pid].qprev = prev;
+	prev->qnext=&queuetab[pid];
 
-	tail = queuetail(q);
-	prev = queuetab[tail].qprev;
-
-	queuetab[pid].qnext  = tail;	/* Insert just before tail node	*/
-	queuetab[pid].qprev  = prev;
-	queuetab[prev].qnext = pid;
-	queuetab[tail].qprev = pid;
+	/* Insert just before tail node	*/
+	
 	return pid;
 }
 
@@ -46,7 +51,7 @@ pid32	dequeue(
 	}
 
 	pid = getfirst(q);
-	queuetab[pid].qprev = EMPTY;
-	queuetab[pid].qnext = EMPTY;
+	queuetab[pid].qprev = NULL;
+	queuetab[pid].qnext = NULL;
 	return pid;
 }
