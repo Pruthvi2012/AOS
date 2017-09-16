@@ -85,9 +85,9 @@ status	resched_cntl(		/* Assumes interrupts are disabled	*/
 	}
 }
 
-void resched(nextState){
-
-	struct procent *ptold;  /* Ptr to table entry for old process   */
+void    resched1(int32 nextState)           /* Assumes interrupts are disabled      */
+{
+        struct procent *ptold;  /* Ptr to table entry for old process   */
         struct procent *ptnew;  /* Ptr to table entry for new process   */
 
         /* If rescheduling is deferred, record attempt and return */
@@ -105,12 +105,40 @@ void resched(nextState){
                 if (ptold->prprio > firstkey(readylist)) {
                         return;
                 }
-
-                /* Old process will no longer remain current */
+		
+	else if(nextState ==2){
 
                 ptold->prstate = PR_READY;
                 insert(currpid, readylist, ptold->prprio);
         }
+	else if(nextState ==3){
+
+                ptold->prstate = PR_RECV;
+                
+        }
+	else if(nextState ==4){
+
+                ptold->prstate = PR_SLEEP;
+                
+        }
+	else if(nextState ==5){
+
+                ptold->prstate = PR_SUSP;
+                
+        }
+	else if(nextState ==6){
+
+                ptold->prstate = PR_WAIT;
+                
+        }
+	else if(nextState ==7){
+
+                ptold->prstate = PR_RECTIM;
+                
+        }
+
+}
+
 
         /* Force context switch to highest priority ready process */
 
@@ -118,17 +146,46 @@ void resched(nextState){
         ptnew = &proctab[currpid];
         ptnew->prstate = PR_CURR;
         preempt = QUANTUM;              /* Reset time slice for process */
-	
-	
-	#ifdef MMU
+
+#ifdef MMU
         FlushTLB();
         setPageTable();
-	#endif/*MMU*/
+#endif/*MMU*/
 
         ctxsw(&ptold->prstkptr, &ptnew->prstkptr);
 
         /* Old process returns here when resumed */
 
         return;
+}
 
+/*------------------------------------------------------------------------
+ *  *  resched_cntl  -  Control whether rescheduling is deferred or allowed
+ *   *------------------------------------------------------------------------
+ *    */
+status  resched_cntl1(           /* Assumes interrupts are disabled      */
+          int32 defer           /* Either DEFER_START or DEFER_STOP     */
+        )
+{
+        switch (defer) {
+
+            case DEFER_START:   /* Handle a deferral request */
+
+                if (Defer.ndefers++ == 0) {
+                        Defer.attempt = FALSE;
+                }
+                return OK;
+
+            case DEFER_STOP:    /* Handle end of deferral */
+                if (Defer.ndefers <= 0) {
+                        return SYSERR;
+                }
+                if ( (--Defer.ndefers == 0) && Defer.attempt ) {
+                        resched();
+                }
+                return OK;
+
+            default:
+                return SYSERR;
+	}
 }

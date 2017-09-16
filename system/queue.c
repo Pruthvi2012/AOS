@@ -24,7 +24,7 @@ pid32	enqueue(
         
 	tail = &queuetab[queuetail(q)];
 	prev = queuetab[tail->pid].qprev;
-	queuetab[tail->pid}.qnext = &queuetab[pid];
+	queuetab[tail->pid].qnext = &queuetab[pid];
 	queuetab[pid].qnext = &queuetab[tail->pid];
 	queuetab[pid].qprev = prev;
 	prev->qnext=&queuetab[pid];

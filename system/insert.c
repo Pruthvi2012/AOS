@@ -21,7 +21,7 @@ status	insert(
 
 	curr = &queuetab[firstid(q)];
 	while ((curr != NULL) && (curr->qkey >= key)) {
-		curr = queuetab[curr->qid].qnext;
+		curr = queuetab[curr->pid].qnext;
 	}
 
 	/* Insert process between curr node and previous node */
