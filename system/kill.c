@@ -29,28 +29,33 @@ syscall	kill(
 	for (i=0; i<3; i++) {
 		close(prptr->prdesc[i]);
 	}
-	freestk(prptr->prstkbase, prptr->prstklen);
+	//freestk(prptr->prstkbase, prptr->prstklen);
 
 	switch (prptr->prstate) {
 	case PR_CURR:
-		prptr->prstate = PR_FREE;	/* Suicide */
+		prptr->prstate = PR_DYING;	
 		resched();
 
 	case PR_SLEEP:
+		freestk(prptr->prstkbase, prptr->prstklen);
 	case PR_RECTIM:
+		freestk(prptr->prstkbase, prptr->prstklen);
 		unsleep(pid);
 		prptr->prstate = PR_FREE;
 		break;
 
 	case PR_WAIT:
+		freestk(prptr->prstkbase, prptr->prstklen);
 		semtab[prptr->prsem].scount++;
 		/* Fall through */
 
 	case PR_READY:
+		freestk(prptr->prstkbase, prptr->prstklen);
 		getitem(pid);		/* Remove from queue */
 		/* Fall through */
 
 	default:
+		freestk(prptr->prstkbase, prptr->prstklen);
 		prptr->prstate = PR_FREE;
 	}
 

@@ -137,7 +137,20 @@ local	pid32	newpid(void)
 	static	pid32 nextpid = 1;	/* position in table to try or	*/
 					/*  one beyond end of table	*/
 
+	struct  procent *prptr;    
+
+	
 	/* check all NPROC slots */
+	for (i = 0; i < NPROC; i++) {
+                nextpid %= NPROC;       /* wrap around to beginning */
+                prptr = &proctab[nextpid];
+		if (proctab[nextpid].prstate == PR_DYING) {
+                	freestk(prptr->prstkbase, prptr->prstklen);
+			proctab[nextpid].prstate == PR_FREE;
+                } else {
+                        nextpid++;
+                }
+        }
 
 	for (i = 0; i < NPROC; i++) {
 		nextpid %= NPROC;	/* wrap around to beginning */
