@@ -147,9 +147,9 @@ local	pid32	newpid(void)
 		if (proctab[nextpid].prstate == PR_DYING) {
                 	freestk(prptr->prstkbase, prptr->prstklen);
 			proctab[nextpid].prstate == PR_FREE;
-                } else {
+                } 
                         nextpid++;
-                }
+               
         }
 
 	for (i = 0; i < NPROC; i++) {
