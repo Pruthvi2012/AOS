@@ -1,159 +1,184 @@
 #include <xinu.h>
-#include "future.h"
-
+#include <future.h>
+#include <stdlib.h>
 
 future_t* future_alloc(future_mode_t mode){
-	future_t* add;	//Address
-	add = (future_t*)getmem(sizeof(future_t));
-	add->state = FUTURE_EMPTY;
+	future_t * add; //creating a structure add.
+	add = (future_t *)getmem(sizeof(future_t)); // get the starting address of future_t.
+    	add->state = FUTURE_EMPTY; 
 	add->mode = mode;
-	return add;
+	add->set_queue = -1; // default value
+	add->get_queue = -1; // default value
+	if(add->mode==FUTURE_QUEUE)
+	{
+		add->set_queue=newqueue();
+		add->get_queue=newqueue();
+	}
+	if(add->mode==FUTURE_SHARED)
+	{
+		add->get_queue=newqueue();
+	}
+	return add; 
 }
 
-syscall future_free(future_t *f){
-	
+syscall future_free(future_t* f){
 	return freemem((char *)f,1);
-	
 }
 
-syscall future_get(future_t *f, int *value) {
-
-    intmask mask;            /* Saved interrupt mask		*/
-    struct procent *prpntr;        /* Ptr to process' table entry	*/
+syscall future_get(future_t* f, int* val){
+    intmask mask;
+    struct procent *prptr;
     mask = disable();
-    
-	if (f->mode == FUTURE_EXCLUSIVE) {
+
+    if(f->mode == FUTURE_EXCLUSIVE){
+        //FUTURE_READY
         if (f->state == FUTURE_READY) {
-            *value = f->value;
+            *val = f->value;
             f->state = FUTURE_EMPTY;
             restore(mask);
             return OK;
-        } 
-		else if (f->state == FUTURE_EMPTY) {
+        }
+        //FUTURE_EMPTY
+        else if (f->state == FUTURE_EMPTY) {
             f->state = FUTURE_WAITING;
             f->pid = getpid();
             suspend(f->pid);
-            //*value = f->value;
-            restore(mask);
-            return OK;
-        } 
-		restore(mask);
-        return SYSERR;
-    } else if (f->mode == FUTURE_SHARED) {
-        if (f->state == FUTURE_READY) {
-            *value = f->value;
-            restore(mask);
-            return OK;
-        } 
-		else if (f->state == FUTURE_EMPTY || f->state == FUTURE_WAITING) {
-            f->state = FUTURE_WAITING;
-            prpntr = &proctab[getpid()];
-            prpntr->prstate = PR_WAIT;    /* Set state to waiting	*/
-			//pid32 processID = getpid();
-            //suspend(processID);
-            enqueue(getpid(), f->get_queue);
-            resched();
-            *value = f->value;
-            restore(mask);
-            return OK;
-        }
-		
-		restore(mask);
-        return SYSERR;
-    } else if (f->mode == FUTURE_QUEUE) {
-
-        if (f->state == FUTURE_EMPTY || f->state == FUTURE_WAITING) {
-            //checking if set_queue is empty,if not retrieve the first pid in the queue
-			if (!isempty(f->set_queue)) {
-                ready(getfirst(f->set_queue));
-            } else {
-                f->state = FUTURE_WAITING;
-                prpntr = &proctab[currpid];
-                prpntr->prstate = PR_WAIT;    /* Set state to waiting	*/
-				//pid32 processID = getpid();
-				//suspend(processID);
-                enqueue(getpid(), f->get_queue);
-                resched();
-            }
-            *value = f->value;
-            restore(mask);
-            return OK;
-        }
-		restore(mask);
-        return SYSERR;
-	} 
-	else{
-		restore(mask);
-        return SYSERR;
-	}
-	
-}
-
-
-syscall future_set(future_t *f, int value) {
-    intmask mask;            /* Saved interrupt mask		*/
-    struct procent *prpntr;        /* Ptr to process' table entry	*/
-
-    mask = disable();
-    if (f->mode == FUTURE_EXCLUSIVE) {
-        if (f->state == FUTURE_EMPTY) {
-            f->value = value;
-            f->state = FUTURE_READY;
-            restore(mask);
-            return OK;
-        } else if (f->state == FUTURE_WAITING) {
-            f->value = value;
-            f->state = FUTURE_READY;
-            resume(f->pid);
-			resched();
+            *val = f->value;
             restore(mask);
             return OK;
         } 
         restore(mask);
         return SYSERR;
-        
-    } else if (f->mode == FUTURE_SHARED) {
-		//Checking if the future state is empty or waiting state
-        if (f->state == FUTURE_EMPTY || f->state == FUTURE_WAITING) {
-            f->value = value;
+    }
+    else if(f->mode == FUTURE_SHARED){
+        //FUTURE_READY
+        if (f->state == FUTURE_READY) {
+            *val = f->value;
+            restore(mask);
+            return OK;
+        }
+        //FUTURE_EMPTY
+        else if (f->state == FUTURE_EMPTY || f->state == FUTURE_WAITING ) {
+            f->state = FUTURE_WAITING;
+            prptr = &proctab[getpid()];
+            prptr->prstate = PR_WAIT; // changing the status of the process to PR_WAIT. 
+            enqueue(getpid(), f->get_queue); // Push current process id to get_queue.
+            //Reconstructing the process table.
+            resched();
+            *val = f->value;
+            restore(mask);
+            return OK;
+        }
+        else{
+            restore(mask);
+            return SYSERR;
+        }   
+    }
+    else if(f->mode == FUTURE_QUEUE){
+        if (f->state == FUTURE_EMPTY || f->state == FUTURE_WAITING){
+            // checking whether if set_queue is empty or not
+            if (!isempty(f->set_queue)) {
+                //If it is not empty get the first pid in queue and change it to ready.
+                ready(getfirst(f->set_queue)); 
+            }
+            else{
+                f->state = FUTURE_WAITING;
+                prptr = &proctab[currpid];   
+                prptr->prstate = PR_WAIT;    // changing the status of the process to PR_WAIT. 	
+                enqueue(getpid(), f->get_queue);   // Push current process id to get_queue.
+
+                // Reconstructing the process table.
+                resched();
+            }
+            *val = f->value;
+            restore(mask);
+            return OK;
+        }
+        else{
+            restore(mask);
+            return SYSERR;
+        }
+    }
+    else{
+        restore(mask);
+        return SYSERR;
+    }
+}
+
+syscall future_set(future_t* f, int val){
+    intmask mask;
+    mask = disable(); //Disable interupts.
+    struct procent *prptr;
+
+    // MODE: EXCLUSIVE
+	if(f->mode == FUTURE_EXCLUSIVE){
+        if (f->state == FUTURE_EMPTY){
+            f->value = val; //Set the Value.
+            f->state = FUTURE_READY; // Modify the State.
+            restore(mask); //restore interupts.
+            return OK;
+        }
+        else if (f->state == FUTURE_WAITING) {
             f->state = FUTURE_READY;
+            f->value = val; // Set the Value.
+            resume(f->pid); // Resuming the process.
+            resched(); // Extra line.to ready the process table.
+            restore(mask);
+            return OK;
+        }
+        else{
+            restore(mask);
+            return SYSERR;
+        }
+    }
+    // MODE: SHARED
+	else if(f->mode == FUTURE_SHARED){
+        // Check whether the given future is in empty or waiting state.
+        if(f->state == FUTURE_EMPTY || f->state == FUTURE_WAITING){
+            f->value = val; //Set the Value.
+            f->state = FUTURE_READY; // Modify the State.
+            
             resched_cntl(DEFER_START);
-            while (!isempty(f->get_queue)) {
+            while(!isempty(f->get_queue)){
+                ready(getfirst(f->get_queue));
+            }
+            resched_cntl(DEFER_STOP); //try with resched();
+
+            restore(mask); //restore interupts.
+            return OK;
+        }else{
+            restore(mask);
+            return SYSERR;
+        }         
+    }
+    // MODE: QUEUE
+	else if(f->mode == FUTURE_QUEUE){
+       if(f->state == FUTURE_EMPTY){
+            f->value = val; //Set the Value.
+            prptr = &proctab[getpid()]; 
+            prptr -> prstate = PR_WAIT; 
+            enqueue(getpid(), f->set_queue);
+            resched();
+            restore(mask);
+            return OK;
+       }
+       else if(f->state == FUTURE_WAITING){
+            f->value = val; //Set the Value.
+            resched_cntl(DEFER_START);
+            if (!isempty(f->get_queue)) {
                 ready(getfirst(f->get_queue));
             }
             resched_cntl(DEFER_STOP);
             restore(mask);
             return OK;
-        }
-		restore(mask);
-        return OK;
-		
-    } else if (f->mode == FUTURE_QUEUE) {
-        if (f->state == FUTURE_EMPTY) {
-            prpntr = &proctab[getpid()];
-            prpntr->prstate = PR_WAIT;    /* Set state to waiting	*/
-            enqueue(getpid(), f->set_queue);
-            resched();
-            f->value = value;
-            //f->state = FUTURE_READY;
+       }
+	   else{
             restore(mask);
-            return OK;
-        } else if (f->state == FUTURE_WAITING) {
-            f->value = value;
-            //f->state = FUTURE_READY;
-            if (!isempty(f->get_queue)) {
-                ready(getfirst(f->get_queue));
-				resched();
-            }
-            restore(mask);
-            return OK;
+            return SYSERR;
         }
+	}
+	else{
+        restore(mask);
+		return SYSERR;
     }
-	
-	restore(mask);
-    return SYSERR;
-	
 }
-
-
-
