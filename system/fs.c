@@ -216,29 +216,174 @@ void fs_printfreemask(void) {
   printf("\n");
 }
 
-
+//FS_OPEN
 int fs_open(char *filename, int flags) {
-  return SYSERR;
+	struct inode inDetails;		//Initiate Inode
+	struct fsystem fsDetails;	//Initiate File System
+	int fExist=0;				//Set a flag to check if the file exists
+	int fd=next_open_fd;
+	int i;
+
+	bs_bread(dev0, SB_BLK, 0, &fsDetails, sizeof(struct fsystem));	//Read the fsystem struct data from block 0
+	//Search through the directories
+	for (i=0; i < fsDetails.root_dir.numentries; i++){
+		if (strcmp(filename,fsDetails.root_dir.entry[i].name)==0){
+			oft[fd].state=FSTATE_OPEN;  //Assign the state to open in file table
+			oft[fd].fileptr=0;
+			oft[fd].de=&fsDetails.root_dir.entry[i];
+			fs_get_inode_by_num(0,fsDetails.root_dir.entry[i].inode_num,&inDetails);	//gets inode by inode number
+			oft[fd].in=inDetails;
+			inDetails.type=flags;
+			fs_put_inode_by_num(0,fsDetails.root_dir.entry[i].inode_num,&inDetails);	//puts updated inode by inode number
+			fExist=1;		//set the flag to 1 since we are in the loop
+		}
+	}
+	if(fExist == 0){				//Enters the loop if there are no flags
+		printf("No file exists\n");
+		return SYSERR;	
+	}
+	next_open_fd++;					
+	return fd;
 }
 
+//FS_CLOSE
 int fs_close(int fd) {
-  return SYSERR;
+	oft[fd].state=FSTATE_CLOSED;	//Assign the state to close in filetable
+	oft[fd].fileptr=0;
+	next_open_fd--;
+	return OK;
 }
 
+//FS_CREATE
 int fs_create(char *filename, int mode) {
-  return SYSERR;
+	int i;
+	int currentInode, currentFile;
+	struct inode inDetails;
+	struct fsystem fsDetails;
+	struct dirent dEntry;
+	
+	bs_bread(dev0, SB_BLK, 0, &fsDetails, sizeof(struct fsystem));	//Read the fsystem struct data from block 0
+	
+	//If file created with a same filename
+	if(mode == O_CREAT){
+		for (i=0;i<fsDetails.root_dir.numentries;i++){
+			if(strcmp(filename,fsDetails.root_dir.entry[i])==0){
+				printf("Filename already exists\n");
+				return SYSERR;
+			}
+		}
+	}
+	if (strlen(filename) > FILENAMELEN){
+		printf("Filename length is greater than %d characters", FILENAMELEN);
+		return SYSERR;
+	}
+	
+	currentInode=fsDetails.inodes_used;		//Assigning to currentInode
+	fsDetails.inodes_used++;
+	currentFile=fsDetails.root_dir.numentries;	//Assigning to currentFile
+	fsDetails.root_dir.numentries++;
+	dEntry.inode_num=currentInode;			//Populating the directory Entry
+	strcpy(dEntry.name,filename);
+	fsDetails.root_dir.entry[currentFile]=dEntry;  
+	
+	//Initiating Inode entries
+	inDetails.id=currentInode;
+	inDetails.type=O_RDWR;
+	inDetails.nlink=1;
+	inDetails.device=dev0;
+	inDetails.size=0;
+	
+	//Initiate filetable entries
+	oft[currentFile].state=FSTATE_OPEN;
+	oft[currentFile].fileptr=0;
+	oft[currentFile].de=&dEntry;
+	oft[currentFile].in=inDetails;
+	
+	next_open_fd++;
+	bs_bwrite(dev0,SB_BLK,0,&fsDetails,sizeof(struct fsystem));	//Write the fsystem to block 0 
+	fs_put_inode_by_num(dev0,currentInode,&inDetails);
+//	printf("Returning the file detail as %d and inode number as %d\n ", currentFile, dEntry.inode_num);
+	return currentFile;
 }
 
+//FS_SEEK
 int fs_seek(int fd, int offset) {
-  return SYSERR;
+	oft[fd].fileptr+=offset;	//updating the offset
+	return fd;
 }
 
+//FS_READ
 int fs_read(int fd, void *buf, int nbytes) {
-  return SYSERR;
+	int blockCount,blockTotalSize;
+	int readInode=oft[fd].de->inode_num;		//retrieve Inode form the fd 
+	int ptr=oft[fd].fileptr;		//filepointer
+	struct inode inDetails;
+	
+	fs_get_inode_by_num(0,readInode,&inDetails);	//Get the inode fromthe inode number
+	
+	if (nbytes>(inDetails.size-ptr)){
+		nbytes=inDetails.size-ptr;
+	}
+	
+	if(inDetails.size % MDEV_BLOCK_SIZE == 0){
+		blockCount=inDetails.size/MDEV_BLOCK_SIZE;
+	}
+	else{
+		blockCount=inDetails.size/MDEV_BLOCK_SIZE+1;
+	}
+	blockTotalSize=blockCount*MDEV_BLOCK_SIZE;
+	char data[blockTotalSize];
+	
+	bs_bread(0,inDetails.blocks[0],0,data,blockTotalSize);
+	memcpy(buf,data+ptr,nbytes-ptr);
+	oft[fd].fileptr=nbytes;
+	fs_put_inode_by_num(0,readInode,&inDetails);
+	return nbytes;
 }
 
+//FS_WRITE
 int fs_write(int fd, void *buf, int nbytes) {
-  return SYSERR;
+	struct inode inDetails;
+	struct fsystem fsDetails;
+	char data[MDEV_BLOCK_SIZE];
+	int firstFreeBlock=18;
+	int blockNumber=0;
+	int i;
+	int size=0;
+	int counter=0;
+	int block_to_write;
+	int inode_number=oft[fd].de->inode_num;
+//	printf("writing into inode %d",inode_number);
+	
+	if(next_open_fd<fd){
+		printf("Invalid File Descriptor");
+		return SYSERR;
+	}
+	
+	bs_bread(dev0, SB_BLK, 0, &fsDetails, sizeof(struct fsystem));
+	fs_get_inode_by_num(0,inode_number,&inDetails);
+	blockNumber=firstFreeBlock+((inode_number)*INODEBLOCKS);
+	i=nbytes;
+	while (i>=MDEV_BLOCK_SIZE){
+		memcpy(data,buf+size,MDEV_BLOCK_SIZE);
+		blockNumber=block_to_write+counter;
+		fs_setmaskbit(blockNumber);
+		bs_bwrite(0,blockNumber,0,data,MDEV_BLOCK_SIZE);
+		size=size+MDEV_BLOCK_SIZE;
+		inDetails.blocks[counter]=blockNumber;
+		counter++;
+		i=i-MDEV_BLOCK_SIZE;
+	}
+	memcpy(data,buf+size, MDEV_BLOCK_SIZE);
+	blockNumber=block_to_write+counter;
+	fs_setmaskbit(blockNumber);
+	bs_bwrite(0,blockNumber,0,data,MDEV_BLOCK_SIZE);
+	inDetails.blocks[counter]=blockNumber;
+	oft[fd].fileptr=nbytes;
+	inDetails.size=nbytes;
+	fs_put_inode_by_num(0,inode_number,&inDetails);
+	bs_bwrite(dev0, SB_BLK, 0, &fsDetails, sizeof(struct fsystem));
+    return nbytes;
 }
 
 #endif /* FS */
